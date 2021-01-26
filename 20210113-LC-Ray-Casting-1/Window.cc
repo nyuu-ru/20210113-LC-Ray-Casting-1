@@ -8,6 +8,8 @@
 #include "Window.h"
 #include <stdexcept>
 #include <string>
+#include <cmath>
+#include <numbers>
 
 Window::Window(int width, int height)
 : _width(width), _height(height)
@@ -36,6 +38,10 @@ Window::Window(int width, int height)
 		throw std::runtime_error(
 				"Failed to create a renderer: "s +
 				SDL_GetError());
+
+	SDL_SetRenderDrawBlendMode(_renderer.get(), SDL_BLENDMODE_BLEND);
+
+	_map = std::make_shared<Map>("map1.txt");
 }
 
 void Window::main_loop()
@@ -90,9 +96,40 @@ void Window::render()
 			64, 64, 64, 255);
 	SDL_RenderFillRect(_renderer.get(), &r_floor);
 
+	using namespace std::numbers;
+
+	double x = _map->start_x(); // Will be changed later on
+	double y = _map->start_y();
+	double alpha = _map->start_a();
+	double fov = pi / 3.;
+	double d = double(width()) / 2. / tan(fov / 2.);
+
 	for (int col = 0; col < width(); col++) {
+		double gamma = (col - width()/2) * fov;
+		double beta = alpha + gamma;
+
+
+
+
+
 		draw_col(col, 400);
 	}
+
+	for (int x = 0; x < _map->width(); ++x)
+		for (int y = 0; y < _map->height(); ++y) {
+			SDL_Rect r_cell {
+				x * MAP_CELL_SIZE,
+				y * MAP_CELL_SIZE,
+				MAP_CELL_SIZE,
+				MAP_CELL_SIZE };
+			if (_map->is_wall(x, y))
+				SDL_SetRenderDrawColor(_renderer.get(),
+						255, 255, 255, 127);
+			else
+				SDL_SetRenderDrawColor(_renderer.get(),
+						0, 0, 0, 63);
+			SDL_RenderFillRect(_renderer.get(), &r_cell);
+		}
 }
 
 void Window::draw_col(int col, int h)
