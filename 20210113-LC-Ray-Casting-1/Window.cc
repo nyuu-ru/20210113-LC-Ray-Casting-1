@@ -32,7 +32,8 @@ Window::Window(int width, int height)
 	_renderer = std::shared_ptr<SDL_Renderer>(
 			SDL_CreateRenderer(
 					_window.get(), -1,
-					SDL_RENDERER_ACCELERATED),
+					SDL_RENDERER_ACCELERATED |
+					SDL_RENDERER_PRESENTVSYNC),
 			SDL_DestroyRenderer);
 	if (_renderer == nullptr)
 		throw std::runtime_error(
@@ -42,6 +43,7 @@ Window::Window(int width, int height)
 	SDL_SetRenderDrawBlendMode(_renderer.get(), SDL_BLENDMODE_BLEND);
 
 	_map = std::make_shared<Map>("map1.txt");
+	_player = std::make_shared<Player>();
 }
 
 void Window::main_loop()
@@ -67,6 +69,7 @@ void Window::main_loop()
 
 void Window::setup()
 {
+	_player->spawn(_map);
 
 }
 
@@ -77,7 +80,12 @@ void Window::handle_event(const SDL_Event & event)
 
 void Window::handle_keys(const Uint8 * keys)
 {
-
+	if (keys[SDL_SCANCODE_E]) _player->turn_right();
+	if (keys[SDL_SCANCODE_Q]) _player->turn_left();
+	if (keys[SDL_SCANCODE_W]) _player->walk_forward();
+	if (keys[SDL_SCANCODE_S]) _player->walk_backward();
+	if (keys[SDL_SCANCODE_D]) _player->shift_right();
+	if (keys[SDL_SCANCODE_A]) _player->shift_left();
 }
 
 void Window::logic()
@@ -98,21 +106,67 @@ void Window::render()
 
 	using namespace std::numbers;
 
-	double x = _map->start_x(); // Will be changed later on
-	double y = _map->start_y();
-	double alpha = _map->start_a();
+	double x = _player->x();
+	double y = _player->y();
+	double alpha = _player->alpha();
 	double fov = pi / 3.;
 	double d = double(width()) / 2. / tan(fov / 2.);
+	double H = CELL_HEIGHT;
+	int h;
 
 	for (int col = 0; col < width(); col++) {
-		double gamma = (col - width()/2) * fov;
+		double gamma = (double(col) / double(width()) - 0.5) * fov;
 		double beta = alpha + gamma;
+		double Dh, Dv, D;
+		double rx, ry, dx, dy;
 
+		static constexpr double EPS = 0.001;
 
+		if (cos(beta) > EPS) {
+			rx = floor(x) + EPS;
+			dx = 1.;
+			dy = tan(beta);
+			ry = y - (x - rx) * dy;
+			cast_ray(rx, ry, dx, dy);
+			Dv = hypot(rx-x, ry-y);
+		} else if (cos(beta) < -EPS) {
+			rx = ceil(x) - EPS;
+			dx = -1.;
+			dy = tan(-beta);
+			ry = y - (rx - x) * dy;
+			cast_ray(rx, ry, dx, dy);
+			Dv = hypot(rx-x, ry-y);
+		} else {
+			Dv = INFINITY;
+		}
 
+		if (sin(beta) > EPS) {
+			ry = floor(y) + EPS;
+			dy = 1.;
+			dx = 1./tan(beta);
+			rx = x - (y - ry) * dx;
+			cast_ray(rx, ry, dx, dy);
+			Dh = hypot(rx-x, ry-y);
+		} else if (sin(beta) < -EPS) {
+			ry = ceil(y) - EPS;
+			dy = -1.;
+			dx = 1./tan(-beta);
+			rx = x - (ry - y) * dx;
+			cast_ray(rx, ry, dx, dy);
+			Dh = hypot(rx-x, ry-y);
+		} else {
+			Dh = INFINITY;
+		}
 
+		if (Dv < Dh) {
+			D = Dv;
+		} else {
+			D = Dh;
+		}
 
-		draw_col(col, 400);
+		h = int(H * d / (D * cos(gamma)));
+
+		draw_col(col, h);
 	}
 
 	for (int x = 0; x < _map->width(); ++x)
@@ -130,6 +184,14 @@ void Window::render()
 						0, 0, 0, 63);
 			SDL_RenderFillRect(_renderer.get(), &r_cell);
 		}
+}
+
+void Window::cast_ray(double & rx, double & ry, double dx, double dy)
+{
+	do {
+		rx += dx;
+		ry += dy;
+	} while (not _map->is_wall(rx, ry));
 }
 
 void Window::draw_col(int col, int h)

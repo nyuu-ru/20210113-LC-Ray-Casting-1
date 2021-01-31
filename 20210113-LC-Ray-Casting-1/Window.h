@@ -12,6 +12,7 @@
 #include <SDL2/SDL.h>
 
 #include "Map.h"
+#include "Player.h"
 
 class Window
 {
@@ -20,6 +21,7 @@ public:
 	static constexpr int DEFAULT_HEIGHT = 1080;
 
 	static constexpr int MAP_CELL_SIZE = 30;
+	static constexpr double CELL_HEIGHT = 0.5;
 
 protected:
 	std::shared_ptr<SDL_Window> _window;
@@ -27,6 +29,9 @@ protected:
 	int _width, _height;
 
 	std::shared_ptr<Map> _map;
+	std::shared_ptr<Player> _player;
+
+	void cast_ray(double & rx, double & ry, double dx, double dy);
 
 public:
 	Window(	int width = DEFAULT_WIDTH,
